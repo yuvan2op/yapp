@@ -4,6 +4,7 @@ pipeline {
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         NODE_VERSION = '20'
+        DOCKER_COMPOSE_CMD = 'docker-compose'
     }
     
     options {
@@ -13,6 +14,44 @@ pipeline {
     }
     
     stages {
+        stage('Setup') {
+            steps {
+                script {
+                    echo "🔧 Setting up build environment..."
+                    
+                    // Detect docker-compose command
+                    sh '''
+                        if command -v docker-compose &> /dev/null; then
+                            echo "docker-compose" > docker_cmd.txt
+                        elif docker compose version &> /dev/null; then
+                            echo "docker compose" > docker_cmd.txt
+                        else
+                            echo "❌ Neither docker-compose nor docker compose found"
+                            exit 1
+                        fi
+                    '''
+                    env.DOCKER_COMPOSE_CMD = readFile('docker_cmd.txt').trim()
+                    echo "✅ Using Docker Compose command: ${DOCKER_COMPOSE_CMD}"
+                    
+                    // Check for Node.js and npm
+                    sh '''
+                        if ! command -v node &> /dev/null; then
+                            echo "❌ Node.js is not installed on this Jenkins agent."
+                            echo "📋 Please install Node.js ${NODE_VERSION} using one of these methods:"
+                            echo "   1. Install via Jenkins Global Tool Configuration (Manage Jenkins > Tools)"
+                            echo "   2. Install manually on the agent: curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | sudo bash - && sudo apt-get install -y nodejs"
+                            echo "   3. Use a Docker agent with Node.js pre-installed"
+                            exit 1
+                        fi
+                        
+                        node_version=$(node --version)
+                        npm_version=$(npm --version)
+                        echo "✅ Node.js ${node_version} and npm ${npm_version} are available"
+                    '''
+                }
+            }
+        }
+        
         stage('Checkout') {
             steps {
                 script {
@@ -69,7 +108,7 @@ pipeline {
             steps {
                 script {
                     echo "🐳 Building Docker images..."
-                    sh "docker compose -f ${DOCKER_COMPOSE_FILE} build --no-cache"
+                    sh "${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE} build --no-cache"
                     echo "✅ Docker images built successfully"
                 }
             }
@@ -81,7 +120,7 @@ pipeline {
                     steps {
                         script {
                             echo "🧪 Starting containers for testing..."
-                            sh "docker compose -f ${DOCKER_COMPOSE_FILE} up -d"
+                            sh "${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE} up -d"
                             
                             echo "⏳ Waiting for services to be ready..."
                             sh 'sleep 10'
@@ -158,10 +197,10 @@ pipeline {
                     echo "🚀 Starting deployment to production..."
                     
                     echo "🛑 Stopping existing containers..."
-                    sh "docker compose -f ${DOCKER_COMPOSE_FILE} down || true"
+                    sh "${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE} down || true"
                     
                     echo "🚀 Starting new containers..."
-                    sh "docker compose -f ${DOCKER_COMPOSE_FILE} up -d"
+                    sh "${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE} up -d"
                     
                     echo "⏳ Waiting for services to be ready..."
                     sh 'sleep 15'
@@ -198,7 +237,7 @@ pipeline {
         always {
             script {
                 echo "🧹 Cleaning up test containers..."
-                sh "docker compose -f ${DOCKER_COMPOSE_FILE} down || true"
+                sh "${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE} down || true"
             }
         }
         success {
@@ -212,7 +251,7 @@ pipeline {
             echo "❌ Pipeline failed!"
             script {
                 echo "📋 Collecting logs for debugging..."
-                sh "docker compose -f ${DOCKER_COMPOSE_FILE} logs --tail=50 || true"
+                sh "${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE} logs --tail=50 || true"
             }
         }
         cleanup {
