@@ -14,7 +14,7 @@ export const App = () => {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-   const [apiHealthy, setApiHealthy] = useState<boolean | null>(null);
+  const [apiHealthy, setApiHealthy] = useState<boolean | null>(null);
 
   const loadItems = async () => {
     try {
@@ -43,6 +43,19 @@ export const App = () => {
     void init();
   }, []);
 
+  const handleDelete = async (id: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      await axios.delete(`/api/items/${id}`);
+      setItems((prev) => prev.filter((item) => item._id !== id));
+    } catch {
+      setError("Failed to delete item");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -64,7 +77,7 @@ export const App = () => {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Yapp MERN Demo</h1>
+        <h1>Yapp Notes</h1>
         <div className="status-row">
           <span
             className={`status-pill ${
@@ -77,19 +90,14 @@ export const App = () => {
           >
             <span className="dot" />
             {apiHealthy === null
-              ? "Checking API status…"
+              ? "Checking backend…"
               : apiHealthy
-              ? "API online"
-              : "API unreachable"}
-          </span>
-          <span className="status-caption">
-            Frontend on <code>http://localhost:3000</code>, API on{" "}
-            <code>http://localhost:5000</code>
+              ? "Backend online"
+              : "Backend unreachable"}
           </span>
         </div>
         <p className="subtitle">
-          Simple corporate-style MERN stack example (React + Node + Mongo +
-          Nginx + Docker)
+          A minimal, clean notes list you can create and manage.
         </p>
       </header>
 
@@ -136,13 +144,23 @@ export const App = () => {
             <p>Loading items…</p>
           ) : items.length === 0 ? (
             <p className="muted">
-              No items yet. Create your first item to test the stack.
+              No notes yet. Create your first note to get started.
             </p>
           ) : (
             <ul className="item-list">
               {items.map((item) => (
                 <li key={item._id} className="item">
-                  <h3>{item.title}</h3>
+                  <div className="item-header">
+                    <h3>{item.title}</h3>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      onClick={() => void handleDelete(item._id)}
+                      disabled={loading}
+                    >
+                      Delete
+                    </button>
+                  </div>
                   {item.description && (
                     <p className="description">{item.description}</p>
                   )}
