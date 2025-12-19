@@ -35,7 +35,11 @@ pipeline {
                     
                     // Check for Node.js and npm
                     sh '''
-                        if ! command -v node &> /dev/null; then
+                        set +e
+                        NODE_PATH=$(command -v node 2>/dev/null)
+                        set -e
+                        
+                        if [ -z "$NODE_PATH" ]; then
                             echo "❌ Node.js is not installed on this Jenkins agent."
                             echo "📋 Please install Node.js ${NODE_VERSION} using one of these methods:"
                             echo "   1. Install via Jenkins Global Tool Configuration (Manage Jenkins > Tools)"
@@ -44,8 +48,9 @@ pipeline {
                             exit 1
                         fi
                         
-                        node_version=$(node --version)
-                        npm_version=$(npm --version)
+                        node_version=$(node --version 2>/dev/null || echo "unknown")
+                        npm_version=$(npm --version 2>/dev/null || echo "unknown")
+                        echo "✅ Node.js found at: $NODE_PATH"
                         echo "✅ Node.js ${node_version} and npm ${npm_version} are available"
                     '''
                 }
