@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: ./api
+    container_name: yapp-api
+    environment:
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongo:27017/yapp_db
+    depends_on:
+      - mongo
+    ports:
+      - "5000:5000"
+
+  client:
+    build:
+      context: ./client
+    container_name: yapp-client
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+
+  mongo:
+    image: mongo:7
+    container_name: yapp-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:
+
+
