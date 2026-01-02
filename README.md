@@ -14,7 +14,7 @@ This is a minimal, **production-style MERN stack** example suitable for learning
   - Builds the React app with Vite.
   - Serves static files via Nginx.
   - Proxies any request starting with `/api` to the `api` service.
-  - Exposed on **host port 3000**.
+  - Exposed on **host port 80**.
 
 - `api` container:
   - Express server listening on **port 5000**.
@@ -41,8 +41,10 @@ docker compose up --build
 
 Then:
 
-- Frontend (via Nginx + reverse proxy): `http://localhost:3000`
+- Frontend (via Nginx + reverse proxy): `http://localhost`
 - Backend (direct): `http://localhost:5000/api/health`
+
+**Note:** Port 80 requires administrator/root privileges on Linux/WSL. If you encounter permission errors, you may need to run Docker with `sudo` or configure your system accordingly.
 
 ### Local Development (optional, without Docker)
 
@@ -62,6 +64,8 @@ cd client
 npm install
 npm run dev
 ```
+
+**Note:** Local development runs on Vite's default port (5173) to avoid privilege issues. Port 80 is only used in Docker/production builds via Nginx.
 
 Make sure MongoDB is running locally and update `MONGODB_URI` in `api` `.env` if needed.
 

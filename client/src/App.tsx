@@ -1,12 +1,6 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
-
-type Item = {
-  _id: string;
-  title: string;
-  description?: string;
-  createdAt?: string;
-};
+import type { Item } from "./types";
+import { healthCheck, getItems, createItem, deleteItem } from "./services/api";
 
 export const App = () => {
   const [items, setItems] = useState<Item[]>([]);
@@ -20,8 +14,8 @@ export const App = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await axios.get<Item[]>("/api/items");
-      setItems(res.data);
+      const data = await getItems();
+      setItems(data);
     } catch (err) {
       setError("Failed to load items");
     } finally {
@@ -31,12 +25,8 @@ export const App = () => {
 
   useEffect(() => {
     const init = async () => {
-      try {
-        const health = await axios.get("/api/health");
-        setApiHealthy(health.status === 200);
-      } catch {
-        setApiHealthy(false);
-      }
+      const healthy = await healthCheck();
+      setApiHealthy(healthy);
       await loadItems();
     };
 
@@ -47,7 +37,7 @@ export const App = () => {
     try {
       setLoading(true);
       setError(null);
-      await axios.delete(`/api/items/${id}`);
+      await deleteItem(id);
       setItems((prev) => prev.filter((item) => item._id !== id));
     } catch {
       setError("Failed to delete item");
@@ -63,7 +53,7 @@ export const App = () => {
     try {
       setLoading(true);
       setError(null);
-      await axios.post("/api/items", { title, description });
+      await createItem(title, description);
       setTitle("");
       setDescription("");
       await loadItems();
