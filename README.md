@@ -65,8 +65,6 @@ npm install
 npm run dev
 ```
 
-**Note:** Local development runs on Vite's default port (5173) to avoid privilege issues. Port 80 is only used in Docker/production builds via Nginx.
-
 Make sure MongoDB is running locally and update `MONGODB_URI` in `api` `.env` if needed.
 
 

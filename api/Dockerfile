@@ -1,15 +1,20 @@
-FROM node:20-alpine AS base
+FROM node:20-alpine
 
-WORKDIR /usr/src/app
+WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm install --production
+# Install PM2 globally
+RUN npm install -g pm2
 
-COPY src ./src
+# Copy package files
+COPY package*.json ./
 
-ENV PORT=5000
+# Install production dependencies
+RUN npm i --only=production
+
+# Copy source code
+COPY . .
+
 EXPOSE 5000
 
-CMD ["node", "src/index.js"]
-
-
+# Run backend using PM2
+CMD ["pm2-runtime", "ecosystem.config.cjs"]
