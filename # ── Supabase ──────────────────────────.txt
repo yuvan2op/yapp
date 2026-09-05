@@ -1,0 +1,34 @@
+# ── Supabase ──────────────────────────────────────────
+NEXT_PUBLIC_SUPABASE_URL=https://hzgfywqpjqoffbcdrttz.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6Z2Z5d3FwanFvZmZiY2RydHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3Mjg0NzAsImV4cCI6MjA5MTMwNDQ3MH0.IA6UTvdMbqd3uzUv7MDNI3v9fdurdcS-aS6K6GS0wUE
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6Z2Z5d3FwanFvZmZiY2RydHR6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTcyODQ3MCwiZXhwIjoyMDkxMzA0NDcwfQ.Hfrs2RXqo-BBN8--DzI8v9mC7tm_W7NyOGHzWi32X5s
+# ── Razorpay ──────────────────────────────────────────
+RAZORPAY_KEY_ID=rzp_test_Sbl4mIMMbMxAfv
+RAZORPAY_KEY_SECRET=2cXZ6r1Sc9OgNcvdjc32zZt5
+NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_Sbl4mIMMbMxAfv
+RAZORPAY_WEBHOOK_SECRET=YOUR_WEBHOOK_SECRET
+
+# ── Admin ─────────────────────────────────────────────
+ADMIN_EMAIL=info@axesstechnology.in
+ADMIN_PASSWORD=Axess@2024!
+ADMIN_SECRET=axess-tech-secret-k9x2m7p4q1r8w5n3
+
+# ── Notifications (Resend for email) ──────────────────
+RESEND_API_KEY=enter_your_ey_here
+RESEND_FROM_EMAIL="Axess Technology <onboarding@resend.dev>"
+
+# ── App URL (needed for internal API calls) ───────────
+NEXT_PUBLIC_APP_URL=https://axesstechnology.in
+
+# ── existing ──────────────────────────────────────────
+NEXT_PUBLIC_S3_BASE_URL=https://prod-axess-website.s3.ap-south-2.amazonaws.com
+NEXT_PUBLIC_GOOGLE_SHEET_URL=https://script.google.com/macros/s/AKfycbwz0p_bJveoMRs7GKB9Y5PqcDEN9FXLajNV_0I9sHMJz2wL0nZd4z5JIsz2Not4-lEeAg/exec
+
+# ── Email (Nodemailer/SMTP) ──────────────────────────
+# Use this instead of Resend for better control and flexibility
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=info@axesstechnology.in
+SMTP_PASS=mwpo dumz lgri hqqo
+SMTP_FROM="Axess Technology <info@axesstechnology.in>"

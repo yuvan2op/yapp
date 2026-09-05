@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: yapp-client
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: yapp-api
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: api-mongo

@@ -1,0 +1,3 @@
+
+root/apps/frontend --> {localhost:3001} >> build << root/.env (next.js) // dockerfile???
+root/.env 
