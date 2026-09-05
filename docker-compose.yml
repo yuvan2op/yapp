@@ -17,6 +17,8 @@ services:
     build:
       context: ./client
     container_name: yapp-client
+    environment:
+      - API_UPSTREAM=api:5000
     depends_on:
       - api
     ports:

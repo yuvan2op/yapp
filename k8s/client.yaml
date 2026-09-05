@@ -23,6 +23,9 @@ spec:
         - name: client
           image: yapp-client:latest
           imagePullPolicy: IfNotPresent
+          env:
+            - name: API_UPSTREAM
+              value: yapp-api.yapp-api.svc.cluster.local:5000
           ports:
             - name: http
               containerPort: 80
