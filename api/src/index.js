@@ -10,7 +10,7 @@ const MONGODB_URI =
 
 // Connect to MongoDB and start server
 connectDB(MONGODB_URI).then(() => {
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`API server listening on port ${PORT}`);
   });
 });
