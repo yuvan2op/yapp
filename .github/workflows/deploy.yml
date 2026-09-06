@@ -15,7 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build-and-push:
+    name: Build and push images
     runs-on: ubuntu-latest
 
     env:
@@ -67,6 +68,27 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
+  deploy-to-ec2:
+    name: Deploy to EC2 through SSM
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      BACKEND_REPOSITORY: ${{ vars.BACKEND_REPOSITORY || 'yapp-backend' }}
+      FRONTEND_REPOSITORY: ${{ vars.FRONTEND_REPOSITORY || 'yapp-frontend' }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-deploy-role
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+
+      - name: Set ECR registry
+        run: echo "ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_ENV"
+
       - name: Deploy images through AWS Systems Manager
         env:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/yapp' }}
@@ -106,12 +128,35 @@ jobs:
             --query 'Command.CommandId' \
             --output text)
 
+          set +e
+
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
             --instance-id "$EC2_INSTANCE_ID"
 
+          SSM_STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query 'Status' \
+            --output text)
+
+          echo "SSM command status: $SSM_STATUS"
+
+          echo "===== STANDARD OUTPUT ====="
           aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$EC2_INSTANCE_ID" \
             --query 'StandardOutputContent' \
             --output text
+
+          echo "===== ERROR OUTPUT ====="
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query 'StandardErrorContent' \
+            --output text
+
+          if [ "$SSM_STATUS" != "Success" ]; then
+            echo "Remote deployment failed"
+            exit 1
+          fi
