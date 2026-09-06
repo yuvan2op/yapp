@@ -46,6 +46,26 @@ Then:
 
 **Note:** Port 80 requires administrator/root privileges on Linux/WSL. If you encounter permission errors, you may need to run Docker with `sudo` or configure your system accordingly.
 
+### Deploying with GitHub Actions
+
+The workflow in `.github/workflows/deploy.yml` builds the backend and frontend images, pushes them to Amazon ECR, and deploys the immutable commit-SHA images to EC2 through AWS Systems Manager Run Command. No inbound SSH access is required. The EC2 host must have the SSM Agent, Docker Engine, the Docker Compose plugin, AWS CLI, `curl`, and `git` installed.
+
+Add these repository variables in **Settings > Secrets and variables > Actions > Variables**:
+
+- `AWS_ACCOUNT_ID` - your 12-digit AWS account ID
+- `AWS_REGION` - optional AWS region, defaulting to `ap-south-1`
+- `EC2_INSTANCE_ID` - target EC2 instance ID
+- `DEPLOY_PATH` - optional remote directory, defaulting to `/opt/yapp`
+- `DEPLOY_BRANCH` - optional Git branch, defaulting to `main`
+- `BACKEND_REPOSITORY` - optional ECR repository, defaulting to `yapp-backend`
+- `FRONTEND_REPOSITORY` - optional ECR repository, defaulting to `yapp-frontend`
+
+The workflow uses GitHub OIDC and assumes `github-actions-deploy-role`.
+
+Create the `yapp-backend` and `yapp-frontend` ECR repositories before the first run. Then clone this repository on the EC2 instance at `DEPLOY_PATH`, for example `/opt/yapp`, and make sure the instance can fetch the repository from GitHub. For a private repository, configure a read-only deploy key or another Git credential on the instance. The EC2 instance profile needs `AmazonSSMManagedInstanceCore` plus ECR pull permissions: `ecr:GetAuthorizationToken`, `ecr:BatchCheckLayerAvailability`, `ecr:GetDownloadUrlForLayer`, and `ecr:BatchGetImage`. The GitHub Actions IAM role needs ECR push permissions: `ecr:GetAuthorizationToken`, `ecr:BatchCheckLayerAvailability`, `ecr:CompleteLayerUpload`, `ecr:InitiateLayerUpload`, `ecr:PutImage`, and `ecr:UploadLayerPart`, plus `ssm:SendCommand`, `ssm:GetCommandInvocation`, and `ssm:ListCommandInvocations` on the target instance.
+
+The workflow runs `git fetch`, resets to the selected branch, logs in to ECR, pulls the exact commit-SHA images, and executes `docker compose up -d --no-build --remove-orphans` through SSM. The `mongo-data` volume is preserved between deployments. The instance security group only needs to allow the application ports required by users, such as 80 and 5000; SSH port 22 is not required for this workflow.
+
 ### Local Development (optional, without Docker)
 
 You can also run services locally:

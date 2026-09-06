@@ -1,0 +1,117 @@
+name: Build, Push, and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      BACKEND_REPOSITORY: ${{ vars.BACKEND_REPOSITORY || 'yapp-backend' }}
+      FRONTEND_REPOSITORY: ${{ vars.FRONTEND_REPOSITORY || 'yapp-frontend' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-deploy-role
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+
+      - name: Set ECR registry
+        run: echo "ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_ENV"
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPOSITORY }}:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPOSITORY }}:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./client
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPOSITORY }}:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPOSITORY }}:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Deploy images through AWS Systems Manager
+        env:
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/yapp' }}
+          EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH || 'main' }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          COMMANDS=$(jq -n \
+            --arg path "$DEPLOY_PATH" \
+            --arg branch "$DEPLOY_BRANCH" \
+            --arg registry "$ECR_REGISTRY" \
+            --arg tag "$IMAGE_TAG" \
+            --arg region "$AWS_REGION" \
+            --arg backend_repository "$BACKEND_REPOSITORY" \
+            --arg frontend_repository "$FRONTEND_REPOSITORY" \
+            '{commands: [
+              "set -e",
+              ("cd " + ($path | @sh)),
+              ("git fetch origin " + ($branch | @sh)),
+              ("git reset --hard origin/" + ($branch | @sh)),
+              ("aws ecr get-login-password --region " + ($region | @sh) + " | docker login --username AWS --password-stdin " + ($registry | @sh)),
+              ("export ECR_REGISTRY=" + ($registry | @sh)),
+              ("export IMAGE_TAG=" + ($tag | @sh)),
+              ("export BACKEND_REPOSITORY=" + ($backend_repository | @sh)),
+              ("export FRONTEND_REPOSITORY=" + ($frontend_repository | @sh)),
+              "docker compose pull api client",
+              "docker compose up -d --no-build --remove-orphans",
+              "docker compose ps",
+              "curl --fail --silent --show-error http://127.0.0.1/api/health"
+            ]}')
+
+          COMMAND_ID=$(aws ssm send-command \
+            --document-name 'AWS-RunShellScript' \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --comment "Deploy Yapp images ${IMAGE_TAG}" \
+            --parameters "$COMMANDS" \
+            --query 'Command.CommandId' \
+            --output text)
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID"
+
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query 'StandardOutputContent' \
+            --output text

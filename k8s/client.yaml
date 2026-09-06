@@ -28,7 +28,7 @@ spec:
               value: yapp-api.yapp-api.svc.cluster.local:5000
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
           resources:
             requests:
               cpu: 50m

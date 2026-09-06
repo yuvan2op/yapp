@@ -2,6 +2,7 @@ version: "3.9"
 
 services:
   api:
+    image: ${ECR_REGISTRY:-local}/${BACKEND_REPOSITORY:-yapp-backend}:${IMAGE_TAG:-latest}
     build:
       context: ./api
     container_name: yapp-api
@@ -10,10 +11,14 @@ services:
       - MONGODB_URI=mongodb://mongo:27017/yapp_db
     depends_on:
       - mongo
+    networks:
+      - frontend
+      - backend
     ports:
       - "5000:5000"
 
   client:
+    image: ${ECR_REGISTRY:-local}/${FRONTEND_REPOSITORY:-yapp-frontend}:${IMAGE_TAG:-latest}
     build:
       context: ./client
     container_name: yapp-client
@@ -21,15 +26,26 @@ services:
       - API_UPSTREAM=api:5000
     depends_on:
       - api
+    networks:
+      - frontend
     ports:
-      - "80:80"
+      - "80:8080"
 
   mongo:
     image: mongo:7
     container_name: yapp-mongo
+    user: mongodb
     restart: unless-stopped
+    networks:
+      - backend
     volumes:
       - mongo-data:/data/db
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
 
 volumes:
   mongo-data:
