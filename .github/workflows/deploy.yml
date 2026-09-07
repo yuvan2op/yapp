@@ -176,8 +176,7 @@ jobs:
               ("export FRONTEND_REPOSITORY=" + ($frontend_repository | @sh)),
               "docker compose pull api client",
               "docker compose up -d --no-build --remove-orphans",
-              "check_health() { endpoint=\\\"$1\\\"; for attempt in $(seq 1 10); do if curl --fail --silent --show-error --connect-timeout 5 --max-time 10 \\\"$endpoint\\\"; then echo; echo \\\"Healthy: $endpoint\\\"; return 0; fi; echo \\\"Not ready ($attempt/10): $endpoint\\\"; sleep 10; done; return 1; }",
-              "if ! check_health http://127.0.0.1:5000/api/health || ! check_health http://127.0.0.1/api/health; then echo \\\"Application health check failed; rolling back\\\"; docker compose ps; docker compose logs --tail=100 api client; if [ -n \\\"$PREV_TAG\\\" ]; then export IMAGE_TAG=\\\"$PREV_TAG\\\"; docker compose pull api client; docker compose up -d --no-build --remove-orphans; echo \\\"Rolled back to $PREV_TAG\\\"; fi; exit 1; fi",
+              "for endpoint in http://127.0.0.1:5000/api/health http://127.0.0.1/api/health; do healthy=0; for attempt in $(seq 1 10); do if curl --fail --silent --show-error --connect-timeout 5 --max-time 10 \\\"$endpoint\\\"; then echo; echo \\\"Healthy: $endpoint\\\"; healthy=1; break; fi; echo \\\"Not ready ($attempt/10): $endpoint\\\"; sleep 10; done; if [ \\\"$healthy\\\" -ne 1 ]; then echo \\\"Application health check failed; rolling back\\\"; docker compose ps; docker compose logs --tail=100 api client; if [ -n \\\"$PREV_TAG\\\" ]; then export IMAGE_TAG=\\\"$PREV_TAG\\\"; docker compose pull api client; docker compose up -d --no-build --remove-orphans; echo \\\"Rolled back to $PREV_TAG\\\"; fi; exit 1; fi; done",
               ("echo " + ($tag | @sh) + " > .last-deployed-tag"),
               "echo \\\"Application is healthy\\\""
             ]}')
