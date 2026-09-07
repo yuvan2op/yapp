@@ -1,9 +1,0 @@
-curl 'https://mailscrapper.v-accel.ai/api/auth/login' \
-  -H 'sec-ch-ua-platform: "Windows"' \
-  -H 'Referer;' \
-  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36' \
-  -H 'Accept: application/json, text/plain, */*' \
-  -H 'sec-ch-ua: "Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"' \
-  -H 'Content-Type: application/json' \
-  -H 'sec-ch-ua-mobile: ?0' \
-  --data-raw '{"email":"admin@emailsync.ai","password":"admin123456"}'
