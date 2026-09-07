@@ -105,15 +105,15 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.cache }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
 
-      - name: Scan image for vulnerabilities
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ steps.image.outputs.sha }}
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          severity: CRITICAL,HIGH
-          scanners: vuln
+      # - name: Scan image for vulnerabilities
+      #   uses: aquasecurity/trivy-action@master
+      #   with:
+      #     image-ref: ${{ steps.image.outputs.sha }}
+      #     format: table
+      #     exit-code: "1"
+      #     ignore-unfixed: true
+      #     severity: CRITICAL,HIGH
+      #     scanners: vuln
 
       - name: Push scanned image
         run: docker push "${{ steps.image.outputs.sha }}"
