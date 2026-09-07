@@ -1,4 +1,4 @@
-name: Build, Push, and Deploy
+name: Test, Build, Push, and Deploy
 
 on:
   push:
@@ -22,11 +22,42 @@ env:
   FRONTEND_REPOSITORY: ${{ vars.FRONTEND_REPOSITORY || 'yapp-frontend' }}
 
 jobs:
+  test:
+    name: Test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test --workspaces --if-present -- --ci
+
+      - name: Build API
+        run: npm run build --workspace api
+
+      - name: Build client
+        run: npm run build --workspace client
+
   build-and-push:
     name: Build and push images
+    needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     strategy:
+      fail-fast: true
       matrix:
         include:
           - context: ./api
@@ -40,6 +71,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Resolve image name
+        id: image
+        run: |
+          if [ "${{ matrix.service }}" = "backend" ]; then
+            repository="$BACKEND_REPOSITORY"
+          else
+            repository="$FRONTEND_REPOSITORY"
+          fi
+          echo "name=${ECR_REGISTRY}/${repository}" >> "$GITHUB_OUTPUT"
+          echo "sha=${ECR_REGISTRY}/${repository}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -52,24 +94,54 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push image
+      - name: Build image for scanning
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
-          push: true
+          push: false
+          load: true
           platforms: linux/amd64
-          tags: |
-            ${{ env.ECR_REGISTRY }}/${{ matrix.service == 'backend' && env.BACKEND_REPOSITORY || env.FRONTEND_REPOSITORY }}:${{ github.sha }}
-            ${{ env.ECR_REGISTRY }}/${{ matrix.service == 'backend' && env.BACKEND_REPOSITORY || env.FRONTEND_REPOSITORY }}:latest
+          tags: ${{ steps.image.outputs.sha }}
           cache-from: type=gha,scope=${{ matrix.cache }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.image.outputs.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          scanners: vuln
+
+      - name: Push scanned image
+        run: docker push "${{ steps.image.outputs.sha }}"
 
   deploy-to-ec2:
     name: Deploy to EC2 through SSM
     needs: build-and-push
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
+      - name: Validate required deployment variables
+        run: |
+          missing=0
+          for variable in AWS_ACCOUNT_ID AWS_REGION; do
+            if [ -z "${!variable}" ]; then
+              echo "Missing required repository variable: $variable"
+              missing=1
+            fi
+          done
+          if [ -z "${{ vars.EC2_INSTANCE_ID }}" ]; then
+            echo "Missing required repository variable: EC2_INSTANCE_ID"
+            missing=1
+          fi
+          if [ "$missing" -eq 1 ]; then
+            exit 1
+          fi
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -94,6 +166,7 @@ jobs:
             '{commands: [
               "set -e",
               ("cd " + ($path | @sh)),
+              "PREV_TAG=$(cat .last-deployed-tag 2>/dev/null || echo \"\")",
               ("git fetch origin " + ($branch | @sh)),
               ("git reset --hard origin/" + ($branch | @sh)),
               ("aws ecr get-login-password --region " + ($region | @sh) + " | docker login --username AWS --password-stdin " + ($registry | @sh)),
@@ -103,17 +176,10 @@ jobs:
               ("export FRONTEND_REPOSITORY=" + ($frontend_repository | @sh)),
               "docker compose pull api client",
               "docker compose up -d --no-build --remove-orphans",
-              "echo \\\"Checking backend directly...\\\"",
-              "curl -i http://127.0.0.1:5000/api/health || true",
-              "echo \\\"Checking frontend proxy...\\\"",
-              "curl -i http://127.0.0.1/api/health || true",
-              "echo \\\"Container status...\\\"",
-              "docker compose ps",
-              "echo \\\"Backend logs...\\\"",
-              "docker compose logs --tail=100 api",
-              "echo \\\"Frontend logs...\\\"",
-              "docker compose logs --tail=100 client",
-              "for i in {1..30}; do if curl --fail --silent --show-error http://127.0.0.1/api/health; then echo \\\"Application is healthy\\\"; exit 0; fi; sleep 2; done; exit 1"
+              "check_health() { endpoint=\\\"$1\\\"; for attempt in $(seq 1 10); do if curl --fail --silent --show-error --connect-timeout 5 --max-time 10 \\\"$endpoint\\\"; then echo; echo \\\"Healthy: $endpoint\\\"; return 0; fi; echo \\\"Not ready ($attempt/10): $endpoint\\\"; sleep 10; done; return 1; }",
+              "if ! check_health http://127.0.0.1:5000/api/health || ! check_health http://127.0.0.1/api/health; then echo \\\"Application health check failed; rolling back\\\"; docker compose ps; docker compose logs --tail=100 api client; if [ -n \\\"$PREV_TAG\\\" ]; then export IMAGE_TAG=\\\"$PREV_TAG\\\"; docker compose pull api client; docker compose up -d --no-build --remove-orphans; echo \\\"Rolled back to $PREV_TAG\\\"; fi; exit 1; fi",
+              ("echo " + ($tag | @sh) + " > .last-deployed-tag"),
+              "echo \\\"Application is healthy\\\""
             ]}')
 
           COMMAND_ID=$(aws ssm send-command \
@@ -126,7 +192,7 @@ jobs:
 
           set +e
 
-          aws ssm wait command-executed \
+          timeout 600 aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
             --instance-id "$EC2_INSTANCE_ID"
 

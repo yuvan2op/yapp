@@ -96,7 +96,9 @@ app.get("/", (req, res) => {
           <p>Use this service from the React client or directly from tools like Postman.</p>
           <p class="meta">
             Health endpoint: <code>GET /api/health</code><br/>
-            Items endpoint: <code>GET /api/items</code>, <code>POST /api/items</code>
+            Items endpoint: <code>GET /api/items</code>, <code>POST /api/items</code><br/>
+            Tasks endpoint: <code>GET /api/tasks</code>, <code>POST /api/tasks</code>,
+            <code>PUT /api/tasks/:id</code>, <code>DELETE /api/tasks/:id</code>
           </p>
         </main>
       </body>
