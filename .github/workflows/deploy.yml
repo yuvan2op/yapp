@@ -166,7 +166,6 @@ jobs:
             '{commands: [
               "set -e",
               ("cd " + ($path | @sh)),
-              "PREV_TAG=$(cat .last-deployed-tag 2>/dev/null || echo \"\")",
               ("git fetch origin " + ($branch | @sh)),
               ("git reset --hard origin/" + ($branch | @sh)),
               ("aws ecr get-login-password --region " + ($region | @sh) + " | docker login --username AWS --password-stdin " + ($registry | @sh)),
@@ -176,7 +175,10 @@ jobs:
               ("export FRONTEND_REPOSITORY=" + ($frontend_repository | @sh)),
               "docker compose pull api client",
               "docker compose up -d --no-build --remove-orphans",
-              "for endpoint in http://127.0.0.1:5000/api/health http://127.0.0.1/api/health; do healthy=0; for attempt in $(seq 1 10); do if curl --fail --silent --show-error --connect-timeout 5 --max-time 10 \\\"$endpoint\\\"; then echo; echo \\\"Healthy: $endpoint\\\"; healthy=1; break; fi; echo \\\"Not ready ($attempt/10): $endpoint\\\"; sleep 10; done; if [ \\\"$healthy\\\" -ne 1 ]; then echo \\\"Application health check failed; rolling back\\\"; docker compose ps; docker compose logs --tail=100 api client; if [ -n \\\"$PREV_TAG\\\" ]; then export IMAGE_TAG=\\\"$PREV_TAG\\\"; docker compose pull api client; docker compose up -d --no-build --remove-orphans; echo \\\"Rolled back to $PREV_TAG\\\"; fi; exit 1; fi; done",
+              "for attempt in 1 2 3 4 5 6 7 8 9 10; do curl --fail --silent --show-error --connect-timeout 5 --max-time 10 http://127.0.0.1:5000/api/health && break; echo Backend-not-ready-$attempt; sleep 10; done",
+              "curl --fail --silent --show-error --connect-timeout 5 --max-time 10 http://127.0.0.1:5000/api/health",
+              "for attempt in 1 2 3 4 5 6 7 8 9 10; do curl --fail --silent --show-error --connect-timeout 5 --max-time 10 http://127.0.0.1/api/health && break; echo Frontend-not-ready-$attempt; sleep 10; done",
+              "curl --fail --silent --show-error --connect-timeout 5 --max-time 10 http://127.0.0.1/api/health",
               ("echo " + ($tag | @sh) + " > .last-deployed-tag"),
               "echo \\\"Application is healthy\\\""
             ]}')
